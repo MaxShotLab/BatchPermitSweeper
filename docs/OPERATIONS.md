@@ -1,10 +1,40 @@
 # 运维与交接
 
-## 日常权限
+## 权限矩阵
 
-Owner 管理 Worker、代币白名单、收款地址和所有权；Owner 与有效 Worker 都可以归集、暂停。只有 Owner 可以恢复。合约不自动校验后续新 Owner 的多签阈值，2/3 多签是部署和管理交接的运维要求。
+本节为接口级权限对照，按 [BatchPermitSweeper.sol](../src/BatchPermitSweeper.sol) 的实际访问控制和当前锁定的 [Ownable2Step](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/cab19933c33c2ad1d4c7a84864a3601dddfd16f3/contracts/access/Ownable2Step.sol) 校对；概览见 [README 权限矩阵](../README.md#权限矩阵)。
 
-`setOperator(account,status)`、`setTokenAllowed(token,status)` 实际改变状态时更新全局版本，相同值不更新。停用代币不撤销其 allowance，撤销 Worker 不改变充值地址的授权。
+当前 Owner 由 `owner()` 决定，有效 Worker 由 `isOperator(account)` 决定，待接任 Owner 由 `pendingOwner()` 决定。Worker、待接任 Owner 列分别按仅持有该身份理解，普通地址不持有任何上述身份。身份可以重叠：例如 Worker 同时为 pendingOwner 时，可以执行 Worker 操作并接受交接，但接受前没有 Owner 管理权限。
+
+| 接口 / 操作 | 当前 Owner | 有效 Worker | 待接任 Owner | 普通地址 | 暂停状态与其他前置条件 | `configVersion` |
+| --- | --- | --- | --- | --- | --- | --- |
+| 公开 getter | 可以 | 可以 | 可以 | 可以 | 任意状态；无角色限制 | 不变 |
+| `batchSweep` | 可以 | 可以 | 不可以 | 不可以 | 未暂停；有效上下文、代币白名单、来源与授权检查 | 不变 |
+| `batchSweepWithPermit` | 可以 | 可以 | 不可以 | 不可以 | 同普通归集；仅 allowance 不足时尝试 Permit | 不变 |
+| `pause` | 可以 | 可以 | 不可以 | 不可以 | 必须未暂停 | 成功后 +1 |
+| `unpause` | 可以 | 不可以 | 不可以 | 不可以 | 必须已暂停 | 成功后 +1 |
+| `setOperator` | 可以 | 不可以 | 不可以 | 不可以 | 任意暂停状态；地址有效 | 状态实际改变时 +1 |
+| `setTokenAllowed` | 可以 | 不可以 | 不可以 | 不可以 | 任意暂停状态；启用时校验代币代码，停用不要求代码仍存在 | 状态实际改变时 +1 |
+| `proposeRecipient` | 可以 | 不可以 | 不可以 | 不可以 | 任意暂停状态；有效且不同于当前 recipient；替换也重新计时 | 不变 |
+| `cancelRecipientChange` | 可以 | 不可以 | 不可以 | 不可以 | 任意暂停状态；待生效提案存在且编号匹配 | 不变 |
+| `activateRecipient` | 可以 | 不可以 | 不可以 | 不可以 | 已暂停；满 24 小时；提案编号及目标地址匹配 | 成功后 +1 |
+| `transferOwnership` | 可以 | 不可以 | 不可以 | 不可以 | 任意暂停状态；无额外延迟；不得转给自身或当前 Owner，零地址仅取消待接任 | 不变 |
+| `acceptOwnership` | 不可以 | 不可以 | 可以 | 不可以 | 任意暂停状态；调用者必须等于 pendingOwner；无额外延迟 | 成功后 +1 |
+| `recoverERC20` | 可以 | 不可以 | 不可以 | 不可以 | 已暂停；有效上下文；仅合约自身余额到当前 recipient；实收一致 | 不变 |
+| `renounceOwnership` | 禁用 | 禁用 | 禁用 | 禁用 | 无成功路径；Owner 调用也回滚 | 不变 |
+| 升级实现、任意调用 | 无入口 | 无入口 | 无入口 | 无入口 | 不提供代理升级或通用执行函数 | 不适用 |
+
+表中“可以”只是角色条件满足；参数、余额、授权、白名单、截止时间、重入锁等检查仍然执行。失败调用不会保留版本变化。公开 getter 包括 `owner`、`pendingOwner`、`recipient`、`paused`、`isOperator`、`isTokenAllowed`、`configVersion`、`pendingRecipientChange`、`recipientChangeNonce` 和 `RECIPIENT_CHANGE_DELAY`。
+
+**管理员与 Worker 均不能通过归集参数指定其他收款地址，Owner 也不能绕过 24 小时收款轮换等待期。** 找回入口不使用充值 EOA 的 allowance，也不要求代币位于正常归集白名单，但仍有代码、金额和实收检查。
+
+## 角色与交接边界
+
+Owner 无须额外登记为 Worker 就可以归集和暂停。仅部署者、仅 recipient 或仅多签签名人的 EOA 不自动获得任何管理或归集权限；Owner 为多签时，合约识别的是多签账户发出的调用。待接任身份不提前赋予管理权，尚未接受时只有接受交接的额外能力。
+
+Owner 与有效 Worker 都可以归集、暂停。只有 Owner 可以恢复。合约不自动校验后续新 Owner 的多签阈值，2/3 多签是部署和管理交接的运维要求；部署脚本的多签检查不是合约持续强制执行的权限规则。
+
+`setOperator(account,status)`、`setTokenAllowed(token,status)` 实际改变状态时更新全局版本，相同值不更新。停用代币不撤销其 allowance，撤销 Worker 不改变充值地址的授权。旧 Owner 若仍登记为 Worker，交接后继续具有该独立权限，必须单独撤销。
 
 ## 紧急暂停
 

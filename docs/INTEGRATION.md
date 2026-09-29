@@ -2,6 +2,28 @@
 
 本仓库提供合约、ABI 生成方式与接入约束，不包含生产 Worker、私钥服务或充值账务服务的实现。
 
+## Worker 权限矩阵
+
+以下按调用账户仅持有 Worker 权限说明；全角色、接口条件和版本变化见 [运维权限矩阵](OPERATIONS.md#权限矩阵)。Owner 无须另登记为 Worker 即可执行归集和暂停。
+
+| 调用 / 操作 | 有效 Worker | 未授权或已撤销的 Worker | 执行边界 |
+| --- | --- | --- | --- |
+| 读取公开状态 | 可以 | 可以 | 无角色限制 |
+| `batchSweep` | 可以 | 不可以 | 未暂停；授权、白名单、上下文和金额检查通过 |
+| `batchSweepWithPermit` | 可以 | 不可以 | 与普通归集相同；有效 Permit 不替代操作员权限 |
+| `pause` | 可以 | 不可以 | 必须处于未暂停状态 |
+| `unpause` | 不可以 | 不可以 | 仅当前 Owner |
+| `setOperator`、`setTokenAllowed` | 不可以 | 不可以 | 仅当前 Owner，Worker 不能自行恢复身份或启用资产 |
+| 收款地址提议、取消、确认 | 不可以 | 不可以 | 仅当前 Owner，确认仍须暂停并满 24 小时 |
+| `transferOwnership` | 不可以 | 不可以 | 仅当前 Owner |
+| `acceptOwnership` | 不因 Worker 身份获得 | 不因 Worker 身份获得 | 仅当账户另外等于 pendingOwner 时可接受 |
+| `recoverERC20` | 不可以 | 不可以 | 仅当前 Owner 且已暂停 |
+| 任意目的地转账、升级、放弃所有权 | 不支持 | 不支持 | 不存在这样的 Worker 能力 |
+
+`PermitParam.owner` 是**代币来源地址**，不是 Sweeper 的管理员 `owner()`。来源地址持有代币、签署 Permit 或成为 recipient，都不会自动授予 Sweeper 操作员权限。任何人直接向代币合约提交有效 Permit，与谁有权调用 Sweeper 是两套独立规则；仅有签名或已有 allowance 的外部调用者仍不能归集。
+
+权限按 Sweeper 实际收到的 `msg.sender` 判断。使用转发器、打包合约或智能账户时，不能假定交易外层 EOA 的 Worker 身份会自动传递；必须核对真正调用 Sweeper 的地址。已撤销的 Worker 若另外仍是当前 Owner，其 Owner 权限仍生效；Owner 转移也不会自动清除独立的 Worker 映射。
+
 ## ABI 与上下文
 
 从锁定提交的构建产物读取 ABI。构造函数为 `(address owner,address recipient,address[] workers)`。
