@@ -25,3 +25,5 @@ jobs:
         run: forge build --sizes --skip test --skip script
       - name: Unit, fuzz and invariant tests
         run: forge test --no-match-path 'test/Fork.t.sol' -vvv
+      - name: Deployment tooling tests
+        run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
