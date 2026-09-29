@@ -22,7 +22,7 @@ jobs:
       - name: Install checksum-pinned Foundry
         run: bash scripts/install-foundry-linux.sh
       - name: Production build and size check
-        run: forge build --sizes --skip test --skip script
+        run: make build
       - name: Unit, fuzz and invariant tests
         run: forge test --no-match-path 'test/Fork.t.sol' -vvv
       - name: Deployment tooling tests

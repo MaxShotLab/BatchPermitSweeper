@@ -1,0 +1,20 @@
+{
+  "sourceCommit": "REQUIRED",
+  "chainId": 0,
+  "deploymentTransaction": "REQUIRED",
+  "deploymentBlock": 0,
+  "sweeper": "REQUIRED",
+  "owner": "REQUIRED",
+  "recipient": "REQUIRED",
+  "workers": [],
+  "tokensReviewed": [],
+  "solc": "0.8.37",
+  "evmVersion": "cancun",
+  "optimizerRuns": 200,
+  "viaIR": false,
+  "initialVerification": "NOT_RUN",
+  "explorerVerification": "NOT_RUN",
+  "tokenForkEvidence": [],
+  "activationTransaction": null,
+  "operatorHandoverApprovedBy": []
+}

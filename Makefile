@@ -5,6 +5,7 @@ deps:
 
 build:
 	forge build --sizes --skip test --skip script
+	forge build
 
 test:
 	forge test --no-match-path 'test/Fork.t.sol' -vvv
