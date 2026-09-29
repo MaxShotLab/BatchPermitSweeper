@@ -26,4 +26,6 @@ jobs:
       - name: Unit, fuzz and invariant tests
         run: forge test --no-match-path 'test/Fork.t.sol' -vvv
       - name: Deployment tooling tests
-        run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
+        run: make tooling-test
+      - name: Local deployment and handover smoke test
+        run: bash scripts/smoke.sh
